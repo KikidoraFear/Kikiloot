@@ -21,6 +21,18 @@ local config = {
     refresh_time = 1
 }
 
+-- ToDo: How to handle if loot master loots mob multiple times
+-- data[1]._loot_link = link
+-- data[1]._loot_name = name
+-- data[1]._roll[player_name] = math.random(100)
+local data = {}
+local data_idx_roll = -1
+
+-- data[loot][1] = player_name -- list of players who have SR on item
+local data_sr = {}
+
+local data_ss = {}
+
 -- ####################
 -- # HELPER FUNCTIONS #
 -- ####################
@@ -37,7 +49,7 @@ end
 -- 18814,"Ruined Pelt",Ragnaros,Bibbley,Warlock,Destruction,,"04/02/2024, 14:55:41"
 -- 18814,"Ruined Pelt",Ragnaros,Aldiuss,Warlock,Destruction,,"04/02/2024, 14:55:41"
 -- 18814,"Ruined Pelt",Ragnaros,Cock,Warlock,Destruction,,"04/02/2024, 14:55:41"
-local function ParseRaidres(text, data_sr)
+local function ParseRaidres(text)
     text = string.gsub(text, 'ID,Item,Boss,Attendee,Class,Specialization,Comment,Date', '') -- remove header
     local pattern = '(.-),(.-),(.-),(.-),(.-),(.-),(.-),(.-),(.-)'
     text = string.gsub(text, '"', '') -- remove " from text, raidres places it randomly, idk
@@ -56,7 +68,7 @@ end
 -- Boots of Blistering Flames,Mage,All Ranks
 -- Ashskin Belt,Rogue,All Ranks
 -- Shoulderpads of True Flight,Shaman Enh/Hunter,All Ranks
-local function ParseLootSpreadsheet(text, data_ss)
+local function ParseLootSpreadsheet(text)
     text = text.."\n"
     local pattern = '(.-),(.-),(.-)\n'
     data_ss = {}
@@ -66,124 +78,57 @@ local function ParseLootSpreadsheet(text, data_ss)
     end
 end
 
-local function BroadCastItem(idx_item, type, value)
-    SendAddonMessage("KL"..kl_id.."_"..idx_item.."_"..type, value , "RAID") -- "KL4_1_ICON", "Itemname", "RAID"
+local function BroadCastRolledLoot(loot_link, loot_icon)
+    SendAddonMessage("KM"..kl_id.."_"..loot_link, loot_icon , "RAID") -- "KM4_ouro_dmg_hit", "10", "RAID"
 end
 
-local function BroadCastReset()
-    SendAddonMessage("KL"..kl_id.."_RESET", 1 , "RAID") -- "KL4_RESET", 1, "RAID"
-end
-
-local function BroadCastRollIdx(idx)
-    SendAddonMessage("KL"..kl_id.."_ROLLIDX", idx , "RAID") -- "KL4_ROLLIDX", 1, "RAID"
-end
-
-local function BroadCastItems()
+local function AddItems(data)
     local idx_item = 1
     for idx_slot = 1, GetNumLootItems() do
         if (LootSlotIsItem(idx_slot)) then -- if is item (i.e. not gold)
             local loot_icon, loot_name, loot_quantity, loot_rarity = GetLootSlotInfo(idx_slot)
             local loot_link = GetLootSlotLink(idx_slot);
             if loot_rarity >= config.min_rarity then
-                BroadCastItem(idx_item, "ICON", loot_icon)
-                BroadCastItem(idx_item, "LINK", loot_link)
-                BroadCastItem(idx_item, "NAME", loot_name)
+                data[idx_item] = {}
+                data[idx_item]._loot_icon = loot_icon
+                data[idx_item]._loot_link = loot_link
+                data[idx_item]._loot_name = loot_name
+                data[idx_item]._roll = {}
+                data[idx_item]._roll_ranking = {}
                 idx_item = idx_item+1
             end
         end
     end
 end
 
-local function BroadCastRoll(data_roll, data_sr, data_idx_roll, player_name, roll_result)
-    if (data_idx_roll > 0) and (not data_roll[data_idx_roll]._roll[player_name]) then
-        -- check SR
-        local has_sr = true
-        if data_sr[data_roll[data_idx_roll]._loot_name] then
-            has_sr = false -- set to false only if SR exists and then check if player has SR
-            for _, value in ipairs(data_sr[data_roll[data_idx_roll]._loot_name]) do
-                if player_name == value then
-                    has_sr = true
-                end
-            end
-        end
-        if has_sr then
-            SendAddonMessage("KL"..kl_id.."_ROLL_"..player_name, roll_result , "RAID") -- "KL4_ROLL_PLAYERNAME", 64, "RAID"
-        end
-    end
-end
-
-local function ResetData(data)
-    for idx,_ in ipairs(data) do data[idx] = nil end
-end
-
-local function AddItem(data_roll, idx_item, type, value)
-    if not data_roll[idx_item] then
-        data_roll[idx_item] = {}
-    end
-    data_roll[idx_item][type] = value
-end
-
-local function RollItem(data_roll, data_sr, data_ss, idx)
+local function RollItem(data, idx)
     SendChatMessage("### KIKILOOT ###" , "PARTY", nil, nil)
-    SendChatMessage("Roll for "..data_roll[idx]._loot_link , "PARTY", nil, nil)
-    if data_ss[data_roll[idx]._loot_name] then
-        SendChatMessage("Comment: "..data_ss[data_roll[idx]._loot_name], "PARTY", nil, nil)
+    SendChatMessage("Roll for "..data[idx]._loot_link , "PARTY", nil, nil)
+    if data_ss[data[idx]._loot_name] then
+        SendChatMessage("Comment: "..data_ss[data[idx]._loot_name], "PARTY", nil, nil)
     end
-    if data_sr[data_roll[idx]._loot_name] then
+    if data_sr[data[idx]._loot_name] then
         local sr_text = "SR: "
-        for _,player_name in ipairs(data_sr[data_roll[idx]._loot_name]) do
+        for _,player_name in ipairs(data_sr[data[idx]._loot_name]) do
             sr_text = sr_text..player_name..", "
         end
         SendChatMessage(sr_text , "PARTY", nil, nil)
     end
     SendChatMessage("### KIKILOOT ###" , "PARTY", nil, nil)
-    BroadCastRollIdx(idx)
+    data_idx_roll = idx
 end
 
-local function AddDataRoll(window, data_roll, data_sr, player_name, roll_result, data_idx_roll)
-    if (data_idx_roll > 0) and (not data_roll[data_idx_roll]._roll[player_name]) then
-        -- check SR
-        local has_sr = true
-        if data_sr[data_roll[data_idx_roll]._loot_name] then
-            has_sr = false -- set to false only if SR exists and then check if player has SR
-            for _, value in ipairs(data_sr[data_roll[data_idx_roll]._loot_name]) do
-                if player_name == value then
-                    has_sr = true
-                end
-            end
-        end
-        if has_sr then
-            -- add roll to data
-            data_roll[data_idx_roll]._roll[player_name] = roll_result
-            -- rank people who rolled
-            data_roll[data_idx_roll]._roll_ranking = {}
-            for key, _ in pairs(data_roll[data_idx_roll]._roll) do
-                table.insert(data_roll[data_idx_roll]._roll_ranking, key) -- creates an array with player_names
-            end
-            table.sort(data_roll[data_idx_roll]._roll_ranking, function(keyRhs, keyLhs) return data_roll[data_idx_roll]._roll[keyLhs] < data_roll[data_idx_roll]._roll[keyRhs] end)
-            -- display top 3
-            for rank, rank_player_name in ipairs(data_roll[data_idx_roll]._roll_ranking) do
-                if rank > 3 then -- only show top 3
-                    break
-                end
-                window.item[data_idx_roll].text[rank]:SetText(data_roll[data_idx_roll]._roll[rank_player_name].." "..rank_player_name)
-                window.item[data_idx_roll].text[rank]:Show()
-            end
-        end
-    end
-end
-
-local function DisplayData(window, data_roll)
+local function DisplayData(data, window)
     for idx,_ in ipairs(window.item) do
         window.item[idx]:Hide()
         for idx_t,_ in ipairs(window.item[idx].text) do
             window.item[idx].text[idx_t]:Hide()
         end
     end
-    for idx,_ in ipairs(data_roll) do
+    for idx,_ in ipairs(data) do
         local idx_f = idx
         window.item[idx] = CreateFrame("Button", nil, window)
-        window.item[idx]:SetBackdrop({bgFile=data_roll[idx]._loot_icon,
+        window.item[idx]:SetBackdrop({bgFile=data[idx]._loot_icon,
             edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
             tile = false, tileSize = 16, edgeSize = 8,
             insets = { left = 2, right = 2, top = 2, bottom = 2}})
@@ -193,12 +138,11 @@ local function DisplayData(window, data_roll)
         window.item[idx]:SetHeight(30)
         window.item[idx]:Show()
         window.item[idx]:SetScript("OnClick", function()
-            RollItem(data_roll, idx_f)
+            RollItem(data, idx_f)
         end)
         window.item[idx]:SetScript("OnEnter", function()
             GameTooltip:SetOwner(window.item[idx_f], "ANCHOR_TOP")
-            GameTooltip:AddLine(data_roll[idx_f]._loot_link)
-            GameTooltip:AddLine("ToDo: Add SR and comments")
+            GameTooltip:AddLine(data[idx_f]._loot_link)
             GameTooltip:Show()
         end)
         window.item[idx]:SetScript("OnLeave", function()
@@ -224,29 +168,7 @@ end
 -- # INIT #
 -- ########
 
--- ToDo: How to handle if loot master loots mob multiple times
--- data[1]._loot_link = link
--- data[1]._loot_name = name
--- data[1]._roll[player_name] = math.random(100)
-local data_roll = {}
-local data_idx_roll = -1
-
--- data[loot][1] = player_name -- list of players who have SR on item
-local data_sr = {}
-
-local data_ss = {}
-
 local window = CreateFrame("Frame", "Kikiloot", UIParent)
-window.item = {}
-
-local loot_master = ""
-local player_name = UnitName("player")
-
-
--- ##########
--- # LAYOUT #
--- ##########
-
 window:SetBackdrop({bgFile = 'Interface\\Tooltips\\UI-Tooltip-Background'}) -- this is temporary, just for show
 window:SetBackdropColor(0, 1, 0, 1) -- this is temporary, just for show
 window:SetPoint('CENTER', UIParent)
@@ -260,6 +182,7 @@ window:SetScript("OnDragStart", function() window:StartMoving() end)
 window:SetScript("OnDragStop", function() window:StopMovingOrSizing() end)
 window:SetClampedToScreen(true) -- so the window cant be moved out of screen
 
+window.item = {}
 
 window.button_sr = CreateFrame("Button", nil, window)
 window.button_sr:ClearAllPoints()
@@ -360,50 +283,68 @@ window.button_ss:SetScript("OnClick", function()
     end
 end)
 
+
+
+
+local loot_master = ""
+local player_name = UnitName("player")
+
+
+-- CreateFrame("EditBox", nil, UIParent)
+-- StaticPopup_Show("GET_RAIDRES")
+-- StaticPopup_Hide("GET_RAIDRES")
+
 -- ##############################
 -- # SEND AND RECEIVE ITEM LIST #
 -- ##############################
 
+local function AddDataRoll(data, player_name, roll_result, data_idx_roll)
+    if (data_idx_roll > 0) and (not data[data_idx_roll]._roll[player_name]) then
+        -- check SR
+        local has_sr = true
+        if data_sr[data[data_idx_roll]._loot_name] then
+            has_sr = false -- set to false only if SR exists and then check if player has SR
+            for _, value in ipairs(data_sr[data[data_idx_roll]._loot_name]) do
+                if player_name == value then
+                    has_sr = true
+                end
+            end
+        end
+        if has_sr then
+            -- add roll to data
+            data[data_idx_roll]._roll[player_name] = roll_result
+            -- rank people who rolled
+            data[data_idx_roll]._roll_ranking = {}
+            for key, _ in pairs(data[data_idx_roll]._roll) do
+                table.insert(data[data_idx_roll]._roll_ranking, key) -- creates an array with player_names
+            end
+            table.sort(data[data_idx_roll]._roll_ranking, function(keyRhs, keyLhs) return data[data_idx_roll]._roll[keyLhs] < data[data_idx_roll]._roll[keyRhs] end)
+            -- display top 3
+            for rank, rank_player_name in ipairs(data[data_idx_roll]._roll_ranking) do
+                if rank > 3 then -- only show top 3
+                    break
+                end
+                window.item[data_idx_roll].text[rank]:SetText(data[data_idx_roll]._roll[rank_player_name].." "..rank_player_name)
+                window.item[data_idx_roll].text[rank]:Show()
+            end
+        end
+    end
+end
+
 window:RegisterEvent("LOOT_OPENED")
 window:RegisterEvent("CHAT_MSG_SYSTEM")
-window:RegisterEvent("CHAT_MSG_ADDON")
 window:SetScript("OnEvent", function()
-    if (event == "LOOT_OPENED") and (player_name == loot_master) then
-        BroadCastReset()
-        BroadCastItems()
-    elseif event == "CHAT_MSG_SYSTEM" and (player_name == loot_master) then
+    if (event == "LOOT_OPENED") then --and (player_name == loot_master) then
+        data = {}
+        data_idx_roll = -1
+        AddItems(data)
+        DisplayData(data, window)
+    elseif event == "CHAT_MSG_SYSTEM" then
         local pattern = "(.+) rolls (%d+) %((%d+)-(%d+)%)"
         for player_name, roll_result, roll_min, roll_max in string.gfind(arg1, pattern) do
             if (roll_min == "1") and (roll_max == "100") then
-                BroadCastRoll(data_roll, data_sr, data_idx_roll, player_name, roll_result)
+                AddDataRoll(data, player_name, roll_result, data_idx_roll)
             end
-        end
-    elseif event == "CHAT_MSG_ADDON" then
-        local pattern_reset = "KL"..kl_id.."_RESET"
-        local pattern_icon = "KL"..kl_id.."_(%d+)_ICON"
-        local pattern_link = "KL"..kl_id.."_(%d+)_LINK"
-        local pattern_name = "KL"..kl_id.."_(%d+)_NAME"
-        local pattern_roll = "KL"..kl_id.."_ROLLIDX"
-        for _ in string.gfind(arg1, pattern_reset) do
-            ResetData(data_roll)
-            data_idx_roll = -1
-            return
-        end
-        for _ in string.gfind(arg1, pattern_roll) do
-            data_idx_roll = arg2
-            return
-        end
-        for idx_item in string.gfind(arg1, pattern_icon) do
-            AddItem(data_roll, idx_item, "_loot_icon", arg2)
-            return
-        end
-        for idx_item in string.gfind(arg1, pattern_link) do
-            AddItem(data_roll, idx_item, "_loot_link", arg2)
-            return
-        end
-        for idx_item in string.gfind(arg1, pattern_name) do
-            AddItem(data_roll, idx_item, "_loot_name", arg2)
-            return
         end
     end
 end)
