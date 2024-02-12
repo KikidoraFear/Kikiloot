@@ -26,11 +26,6 @@ end
 
 -- ID,Item,Boss,Attendee,Class,Specialization,Comment,Date
 -- 21110,"Splintered Tusk",Ragnaros,Bibbley,Warrior,Protection,,"04/02/2024, 14:53:38"
--- 21110,"Splintered Tusk",Ragnaros,Kikidora,Warrior,Protection,,"04/02/2024, 14:53:38"
--- 18814,"Splintered Tusk",Ragnaros,Asdf,Warlock,Destruction,,"04/02/2024, 14:55:41"
--- 18814,"Ruined Pelt",Ragnaros,Bibbley,Warlock,Destruction,,"04/02/2024, 14:55:41"
--- 18814,"Ruined Pelt",Ragnaros,Aldiuss,Warlock,Destruction,,"04/02/2024, 14:55:41"
--- 18814,"Ruined Pelt",Ragnaros,Cock,Warlock,Destruction,,"04/02/2024, 14:55:41"
 local function ParseRaidres(text, data_sr)
     text = text..'\n' -- add \n so last line will be matched as well
     local pattern = '(%d+),(.-),(.-),(.-),(.-),(.-),(.-),(.-)\n' -- modifier - gets 0 or more repetitions and matches the shortest sequence
@@ -45,10 +40,6 @@ local function ParseRaidres(text, data_sr)
 end
 
 -- Splintered Tusk,Warrior Fury,All Ranks
--- Ruined Pelt,Paladin Tank,All Ranks
--- Boots of Blistering Flames,Mage,All Ranks
--- Ashskin Belt,Rogue,All Ranks
--- Shoulderpads of True Flight,Shaman Enh/Hunter,All Ranks
 local function ParseLootSpreadsheet(text, data_ss)
     text = text..'\n'
     local pattern = '(.-),(.-),(.-)\n' -- modifier - gets 0 or more repetitions and matches the shortest sequence
@@ -82,20 +73,20 @@ local function BroadCastItems()
     end
 end
 
-local function BroadCastRoll(data_roll, data_sr, idx, player_name, roll_result)
-    if not data_roll[idx]._roll[player_name] then -- only add first roll of player
+local function BroadCastRoll(data_roll, data_sr, idx, source, roll_result)
+    if not data_roll[idx]._roll[source] then -- only add first roll of player
         -- check SR
         local has_sr = true
         if data_sr[data_roll[idx]._loot_name] then
             has_sr = false -- set to false only if SR exists and then check if player has SR
             for _, value in ipairs(data_sr[data_roll[idx]._loot_name]) do
-                if player_name == value then
+                if source == value then
                     has_sr = true
                 end
             end
         end
         if has_sr then
-            SendAddonMessage("KL"..kl_id.."_ROLL_"..player_name.."_"..idx, roll_result , "RAID") -- "KL4_ROLL_PLAYERNAME", 64, "RAID"
+            SendAddonMessage("KL"..kl_id.."_ROLL_"..source.."_"..idx, roll_result , "RAID") -- "KL4_ROLL_PLAYERNAME", 64, "RAID"
         end
     end
 end
@@ -125,14 +116,8 @@ local function RollItem(data_roll, data_sr, data_ss, idx)
     SendChatMessage("### KIKILOOT ###" , config.roll_channel, nil, nil)
 end
 
-local function AddDataRoll(data_roll, player_name, roll_result, idx)
-    -- add roll to data
-    -- if not data_roll[idx] then
-    --     data_roll[idx] = {}
-    --     data_roll[idx]._roll = {}
-    --     data_roll[idx]._roll_ranking = {}
-    -- end
-    data_roll[idx]._roll[player_name] = roll_result
+local function AddDataRoll(data_roll, source, roll_result, idx)
+    data_roll[idx]._roll[source] = roll_result
     -- rank people who rolled
     data_roll[idx]._roll_ranking = {} -- <- necessary?
     for key, _ in pairs(data_roll[idx]._roll) do
@@ -142,7 +127,7 @@ local function AddDataRoll(data_roll, player_name, roll_result, idx)
 end
 
 local data_roll_idx = -1
-local function DisplayData(window, data_roll, data_sr, data_ss, my_player_name, loot_master)
+local function DisplayData(window, data_roll, data_sr, data_ss, player_name, loot_master)
     for idx,_ in ipairs(window.item) do
         window.item[idx]:Hide()
         for idx_t,_ in ipairs(window.item[idx].text) do
@@ -162,7 +147,7 @@ local function DisplayData(window, data_roll, data_sr, data_ss, my_player_name, 
         window.item[idx]:SetHeight(30)
         window.item[idx]:Show()
         window.item[idx]:SetScript("OnClick", function()
-            if (my_player_name == loot_master) then
+            if (player_name == loot_master) then
                 RollItem(data_roll, data_sr, data_ss, idx_f)
                 data_roll_idx = idx_f
             end
@@ -206,11 +191,11 @@ local function DisplayData(window, data_roll, data_sr, data_ss, my_player_name, 
                 window.item[idx].text[idx_text]:Hide()
             end
         end
-        for rank, rank_player_name in ipairs(data_roll[idx]._roll_ranking) do
+        for rank, player_name in ipairs(data_roll[idx]._roll_ranking) do
             if rank > 3 then -- only show top 3
                 break
             end
-            window.item[idx].text[rank]:SetText(data_roll[idx]._roll[rank_player_name].." "..rank_player_name)
+            window.item[idx].text[rank]:SetText(data_roll[idx]._roll[player_name].." "..player_name)
             window.item[idx].text[rank]:Show()
         end
     end
@@ -236,7 +221,7 @@ local window = CreateFrame("Frame", "Kikiloot", UIParent)
 window.item = {}
 
 local loot_master = ""
-local my_player_name = UnitName("player")
+local player_name = UnitName("player")
 
 -- ##########
 -- # LAYOUT #
@@ -363,14 +348,14 @@ window:RegisterEvent("LOOT_OPENED")
 window:RegisterEvent("CHAT_MSG_SYSTEM")
 window:RegisterEvent("CHAT_MSG_ADDON")
 window:SetScript("OnEvent", function()
-    if (event == "LOOT_OPENED") and (my_player_name == loot_master) then
+    if (event == "LOOT_OPENED") and (player_name == loot_master) then
         BroadCastReset()
         BroadCastItems()
-    elseif event == "CHAT_MSG_SYSTEM" and (my_player_name == loot_master) then
+    elseif event == "CHAT_MSG_SYSTEM" and (player_name == loot_master) then
         local pattern = "(.+) rolls (%d+) %((%d+)-(%d+)%)"
-        for player_name, roll_result, roll_min, roll_max in string.gfind(arg1, pattern) do
+        for source, roll_result, roll_min, roll_max in string.gfind(arg1, pattern) do
             if (roll_min == "1") and (roll_max == "100") and (data_roll_idx>0) then
-                BroadCastRoll(data_roll, data_sr, data_roll_idx, player_name, roll_result)
+                BroadCastRoll(data_roll, data_sr, data_roll_idx, source, roll_result)
             end
         end
     elseif event == "CHAT_MSG_ADDON" then
@@ -379,16 +364,15 @@ window:SetScript("OnEvent", function()
         local pattern_link = "KL"..kl_id.."_(%d+)_LINK" -- loot_link = arg2
         local pattern_name = "KL"..kl_id.."_(%d+)_NAME" -- loot_name = arg2
         local pattern_roll = "KL"..kl_id.."_ROLL_(.+)_(%d+)" -- roll_result = arg2
-        print(arg1)
         for _ in string.gfind(arg1, pattern_reset) do
             ResetData(data_roll)
-            DisplayData(window, data_roll, data_sr, data_ss, my_player_name, loot_master)
+            DisplayData(window, data_roll, data_sr, data_ss, player_name, loot_master)
             data_roll_idx = -1
             return
         end
         for idx_item in string.gfind(arg1, pattern_icon) do
             AddItem(data_roll, tonumber(idx_item), "_loot_icon", arg2)
-            DisplayData(window, data_roll, data_sr, data_ss, my_player_name, loot_master)
+            DisplayData(window, data_roll, data_sr, data_ss, player_name, loot_master)
             return
         end
         for idx_item in string.gfind(arg1, pattern_link) do
@@ -399,9 +383,9 @@ window:SetScript("OnEvent", function()
             AddItem(data_roll, tonumber(idx_item), "_loot_name", arg2)
             return
         end
-        for player_name, idx_item in string.gfind(arg1, pattern_roll) do
-            AddDataRoll(data_roll, player_name, arg2, tonumber(idx_item))
-            DisplayData(window, data_roll, data_sr, data_ss, my_player_name, loot_master)
+        for source, idx_item in string.gfind(arg1, pattern_roll) do
+            AddDataRoll(data_roll, source, arg2, tonumber(idx_item))
+            DisplayData(window, data_roll, data_sr, data_ss, player_name, loot_master)
             return
         end
     end
@@ -427,13 +411,6 @@ end)
 -- # Tests #
 -- #########
 
-BroadCastItem(1, "LINK", "\124cffff8000\124Hitem:19019:0:0:0:0:0:0:0:0\124h[Thunderfury, Blessed Blade of the Windseeker]\124h\124r")
-BroadCastItem(1, "NAME", "Thunderfury")
-BroadCastItem(1, "ICON", "Interface\\Icons\\inv_sword_39")
-BroadCastItem(2, "LINK", "Splintered Tusk")
-BroadCastItem(2, "NAME", "Splintered Tusk")
-BroadCastItem(2, "ICON", "Interface\\Icons\\INV_Misc_Pelt_Wolf_Ruin_04")
-
 --[[
 ID,Item,Boss,Attendee,Class,Specialization,Comment,Date
 21110,"Thunderfury",Ragnaros,Malgoni,Warrior,Protection,,"04/02/2024, 14:53:38"
@@ -442,4 +419,10 @@ ID,Item,Boss,Attendee,Class,Specialization,Comment,Date
 18814,"Ruined Pelt",Ragnaros,Bibbley,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Ruined Pelt",Ragnaros,Aldiuss,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Ruined Pelt",Ragnaros,Cock,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Ruined Pelt",Ragnaros,Cock,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Stringy Vulture Meat",Ragnaros,Kikidora,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Broken Wishbone",Ragnaros,Pestilentia,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Cracked Bill",Ragnaros,Grizzlix,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Rough Vulture Feathers",Ragnaros,Asterixs,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Linen Cloth",Ragnaros,Baldnic,Warlock,Destruction,,"04/02/2024, 14:55:41"
 --]]

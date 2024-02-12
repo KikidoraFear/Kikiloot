@@ -2,6 +2,6 @@
 ## Title: Kikiloot1
 ## Author: Kikidora
 ## Notes: tool that helps distribute and roll off loot
-## Version: 1.0
+## Version: 1.1
 
 Kikiloot.lua
