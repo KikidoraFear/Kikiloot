@@ -142,7 +142,7 @@ local function AddDataRoll(data_roll, player_name, roll_result, idx)
 end
 
 local data_roll_idx = -1
-local function DisplayData(window, data_roll, data_sr, data_ss, player_name, loot_master)
+local function DisplayData(window, data_roll, data_sr, data_ss, my_player_name, loot_master)
     for idx,_ in ipairs(window.item) do
         window.item[idx]:Hide()
         for idx_t,_ in ipairs(window.item[idx].text) do
@@ -162,7 +162,7 @@ local function DisplayData(window, data_roll, data_sr, data_ss, player_name, loo
         window.item[idx]:SetHeight(30)
         window.item[idx]:Show()
         window.item[idx]:SetScript("OnClick", function()
-            if (player_name == loot_master) then
+            if (my_player_name == loot_master) then
                 RollItem(data_roll, data_sr, data_ss, idx_f)
                 data_roll_idx = idx_f
             end
@@ -236,7 +236,7 @@ local window = CreateFrame("Frame", "Kikiloot", UIParent)
 window.item = {}
 
 local loot_master = ""
-local player_name = UnitName("player")
+local my_player_name = UnitName("player")
 
 -- ##########
 -- # LAYOUT #
@@ -363,10 +363,10 @@ window:RegisterEvent("LOOT_OPENED")
 window:RegisterEvent("CHAT_MSG_SYSTEM")
 window:RegisterEvent("CHAT_MSG_ADDON")
 window:SetScript("OnEvent", function()
-    if (event == "LOOT_OPENED") and (player_name == loot_master) then
+    if (event == "LOOT_OPENED") and (my_player_name == loot_master) then
         BroadCastReset()
         BroadCastItems()
-    elseif event == "CHAT_MSG_SYSTEM" and (player_name == loot_master) then
+    elseif event == "CHAT_MSG_SYSTEM" and (my_player_name == loot_master) then
         local pattern = "(.+) rolls (%d+) %((%d+)-(%d+)%)"
         for player_name, roll_result, roll_min, roll_max in string.gfind(arg1, pattern) do
             if (roll_min == "1") and (roll_max == "100") and (data_roll_idx>0) then
@@ -379,13 +379,16 @@ window:SetScript("OnEvent", function()
         local pattern_link = "KL"..kl_id.."_(%d+)_LINK" -- loot_link = arg2
         local pattern_name = "KL"..kl_id.."_(%d+)_NAME" -- loot_name = arg2
         local pattern_roll = "KL"..kl_id.."_ROLL_(.+)_(%d+)" -- roll_result = arg2
+        print(arg1)
         for _ in string.gfind(arg1, pattern_reset) do
             ResetData(data_roll)
+            DisplayData(window, data_roll, data_sr, data_ss, my_player_name, loot_master)
             data_roll_idx = -1
             return
         end
         for idx_item in string.gfind(arg1, pattern_icon) do
             AddItem(data_roll, tonumber(idx_item), "_loot_icon", arg2)
+            DisplayData(window, data_roll, data_sr, data_ss, my_player_name, loot_master)
             return
         end
         for idx_item in string.gfind(arg1, pattern_link) do
@@ -398,6 +401,7 @@ window:SetScript("OnEvent", function()
         end
         for player_name, idx_item in string.gfind(arg1, pattern_roll) do
             AddDataRoll(data_roll, player_name, arg2, tonumber(idx_item))
+            DisplayData(window, data_roll, data_sr, data_ss, my_player_name, loot_master)
             return
         end
     end
@@ -415,7 +419,6 @@ window:SetScript("OnUpdate", function()
                 loot_master = UnitName("raid"..loot_master_id)
             end
         end
-        DisplayData(window, data_roll, data_sr, data_ss, player_name, loot_master)
         window.clock = GetTime()
     end
 end)
@@ -424,17 +427,17 @@ end)
 -- # Tests #
 -- #########
 
-BroadCastItem(1, "LINK", "Splintered Tusk")
-BroadCastItem(1, "NAME", "Splintered Tusk")
-BroadCastItem(1, "ICON", "Interface\\Icons\\INV_Misc_Pelt_Wolf_Ruin_04")
-BroadCastItem(2, "LINK", "Splintered Tusk2")
-BroadCastItem(2, "NAME", "Splintered Tusk2")
+BroadCastItem(1, "LINK", "\124cffff8000\124Hitem:19019:0:0:0:0:0:0:0:0\124h[Thunderfury, Blessed Blade of the Windseeker]\124h\124r")
+BroadCastItem(1, "NAME", "Thunderfury")
+BroadCastItem(1, "ICON", "Interface\\Icons\\inv_sword_39")
+BroadCastItem(2, "LINK", "Splintered Tusk")
+BroadCastItem(2, "NAME", "Splintered Tusk")
 BroadCastItem(2, "ICON", "Interface\\Icons\\INV_Misc_Pelt_Wolf_Ruin_04")
 
 --[[
 ID,Item,Boss,Attendee,Class,Specialization,Comment,Date
-21110,"Splintered Tusk",Ragnaros,Bibbley,Warrior,Protection,,"04/02/2024, 14:53:38"
-21110,"Splintered Tusk",Ragnaros,Kikidora,Warrior,Protection,,"04/02/2024, 14:53:38"
+21110,"Thunderfury",Ragnaros,Malgoni,Warrior,Protection,,"04/02/2024, 14:53:38"
+21110,"Thunderfury",Ragnaros,Kikidora,Warrior,Protection,,"04/02/2024, 14:53:38"
 18814,"Splintered Tusk",Ragnaros,Asdf,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Ruined Pelt",Ragnaros,Bibbley,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Ruined Pelt",Ragnaros,Aldiuss,Warlock,Destruction,,"04/02/2024, 14:55:41"
