@@ -16,7 +16,8 @@ SR can be imported by exporting raidres data as csv:
 clicking SR button and paste csv
 
 Spreadsheet info can be imported if captain is nice enough to format
-the spreadsheet similarly to raidres
+the spreadsheet similarly to raidres  
+work in progress! captain's excel skills are poop
 
 ## What it not do?!
 - distribute loot
