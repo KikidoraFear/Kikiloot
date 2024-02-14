@@ -24,4 +24,4 @@ work in progress! captain's excel skills are poop
 
 ## ToDo:
 - whisper people who have SR
-- show item info in tooltip, idk who though (maybe whisper item link to yourself or something, idk)
+- show item info in tooltip, idk how though (maybe whisper item link to yourself or something, idk)
