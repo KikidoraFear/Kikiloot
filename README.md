@@ -5,7 +5,7 @@ if you are the LOOT MASTER, open loot and it will
 - add all the greens and higher to the item list which is shown in an additional window
 - give greys and whites to yourself
 - post in /ra "Roll for yada yada" with SR and spreadsheet information (see below), by pressing an item icon
-- show top 3 rolls next to loot icons
+- show top 3 rolls next to loot icons (only shows people who have SR if SR exists, also ignores /roll 100 100 and other shenanigans)
 
 if you are not the LOOT MASTER:
 - shows loot master's opened loot
