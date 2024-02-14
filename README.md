@@ -21,3 +21,7 @@ work in progress! captain's excel skills are poop
 
 ## What it not do?!
 - distribute loot
+
+## ToDo:
+- whisper people who have SR
+- show item info in tooltip, idk who though (maybe whisper item link to yourself or something, idk)
