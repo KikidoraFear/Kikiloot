@@ -6,7 +6,7 @@
 local kl_id = 1
 
 local config = {
-    min_rarity = 0, -- 0 grey, 1 white and quest items, 2 green, 3 blue, ...
+    min_rarity = 2, -- 0 grey, 1 white and quest items, 2 green, 3 blue, ...
     refresh_time = 1,
     roll_channel = "RAID"
 }
@@ -49,6 +49,12 @@ local function ParseLootSpreadsheet(text, data_ss)
     end
 end
 
+function GetTableLength(tbl)
+    local count = 0
+    for _ in pairs(tbl) do count = count + 1 end
+    return count
+  end
+
 local function BroadCastItem(idx_item, type, value)
     SendAddonMessage("KL"..kl_id.."_"..idx_item.."_"..type, value , "RAID") -- "KL4_1_ICON", "Itemname", "RAID"
 end
@@ -57,17 +63,27 @@ local function BroadCastReset()
     SendAddonMessage("KL"..kl_id.."_RESET", 1 , "RAID") -- "KL4_RESET", 1, "RAID"
 end
 
-local function BroadCastItems()
-    local idx_item = 1
+local function BroadCastItems(data_roll)
+    local idx_player = nil
+    for idx_loop = 1, GetNumRaidMembers() do
+        if (GetMasterLootCandidate(idx_loop) == UnitName("player")) then
+            idx_player = idx_loop -- get master loot candidate index for player
+            break
+        end
+    end
+    local idx_item = GetTableLength(data_roll) + 1
     for idx_slot = 1, GetNumLootItems() do
         if (LootSlotIsItem(idx_slot)) then -- if is item (i.e. not gold)
             local loot_icon, loot_name, loot_quantity, loot_rarity = GetLootSlotInfo(idx_slot)
-            local loot_link = GetLootSlotLink(idx_slot);
+            local loot_link = GetLootSlotLink(idx_slot)
             if loot_rarity >= config.min_rarity then
                 BroadCastItem(idx_item, "ICON", loot_icon)
                 BroadCastItem(idx_item, "LINK", loot_link)
                 BroadCastItem(idx_item, "NAME", loot_name)
                 idx_item = idx_item+1
+            else
+                print(idx_slot.."_"..idx_player)
+                GiveMasterLoot(idx_slot, idx_player) -- give everything below min_rarity to master looter
             end
         end
     end
@@ -230,7 +246,7 @@ local player_name = UnitName("player")
 window:SetBackdrop({bgFile = 'Interface\\Tooltips\\UI-Tooltip-Background'}) -- this is temporary, just for show
 window:SetBackdropColor(0, 0, 0, 1) -- this is temporary, just for show
 window:SetPoint('CENTER', UIParent)
-window:SetWidth(100)
+window:SetWidth(120)
 window:SetHeight(30)
 window:EnableMouse(true) -- needed for it to be movable
 window:RegisterForDrag("LeftButton")
@@ -262,6 +278,8 @@ window.button_sr:SetBackdropColor(1, 1, 1, 1)
 window.button_sr:SetBackdropBorderColor(0, 0, 0, 1)
 window.button_sr:SetScript("OnEnter", function()
     window.button_sr:SetBackdropBorderColor(1, 1, 1, 1)
+    GameTooltip:SetOwner(window.button_sr, "ANCHOR_TOP")
+    GameTooltip:AddLine("Import SR")
 end)
 window.button_sr:SetScript("OnLeave", function()
     window.button_sr:SetBackdropBorderColor(0, 0, 0, 1)
@@ -312,6 +330,8 @@ window.button_ss:SetBackdropColor(1, 1, 1, 1)
 window.button_ss:SetBackdropBorderColor(0, 0, 0, 1)
 window.button_ss:SetScript("OnEnter", function()
     window.button_ss:SetBackdropBorderColor(1, 1, 1, 1)
+    GameTooltip:SetOwner(window.button_ss, "ANCHOR_TOP")
+    GameTooltip:AddLine("Import Spreadsheet")
 end)
 window.button_ss:SetScript("OnLeave", function()
     window.button_ss:SetBackdropBorderColor(0, 0, 0, 1)
@@ -340,6 +360,41 @@ window.button_ss:SetScript("OnClick", function()
     end
 end)
 
+window.button_cl = CreateFrame("Button", nil, window)
+window.button_cl:ClearAllPoints()
+window.button_cl:SetPoint('BOTTOMLEFT', window, 'BOTTOMLEFT', 60, 0)
+window.button_cl:SetBackdrop({bgFile="Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 8,
+    insets = { left = 2, right = 2, top = 2, bottom = 2}})
+window.button_cl:SetWidth(30)
+window.button_cl:SetHeight(30)
+window.button_cl:Show()
+window.button_cl.text = window.button_cl:CreateFontString("Status", "OVERLAY", "GameFontNormal")
+window.button_cl.text:SetFont(STANDARD_TEXT_FONT, 10, "THINOUTLINE")
+window.button_cl.text:SetFontObject(GameFontWhite)
+window.button_cl.text:ClearAllPoints()
+window.button_cl.text:SetPoint("CENTER", window.button_cl, "CENTER")
+window.button_cl.text:SetText("CL")
+window.button_cl.text:Show()
+window.button_cl:SetBackdropColor(1, 1, 1, 1)
+window.button_cl:SetBackdropBorderColor(0, 0, 0, 1)
+window.button_cl:SetScript("OnEnter", function()
+    window.button_cl:SetBackdropBorderColor(1, 1, 1, 1)
+    GameTooltip:SetOwner(window.button_cl, "ANCHOR_TOP")
+    GameTooltip:AddLine("Clear data")
+end)
+window.button_cl:SetScript("OnLeave", function()
+    window.button_cl:SetBackdropBorderColor(0, 0, 0, 1)
+end)
+window.button_cl:SetScript("OnClick", function()
+    if (player_name == loot_master) then
+        BroadCastReset()
+    end
+end)
+
+
+
 -- ##############################
 -- # SEND AND RECEIVE ITEM LIST #
 -- ##############################
@@ -349,8 +404,7 @@ window:RegisterEvent("CHAT_MSG_SYSTEM")
 window:RegisterEvent("CHAT_MSG_ADDON")
 window:SetScript("OnEvent", function()
     if (event == "LOOT_OPENED") and (player_name == loot_master) then
-        BroadCastReset()
-        BroadCastItems()
+        BroadCastItems(data_roll)
     elseif event == "CHAT_MSG_SYSTEM" and (player_name == loot_master) then
         local pattern = "(.+) rolls (%d+) %((%d+)-(%d+)%)"
         for source, roll_result, roll_min, roll_max in string.gfind(arg1, pattern) do
