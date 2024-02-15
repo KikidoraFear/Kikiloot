@@ -1,4 +1,7 @@
 # Kikiloot
+
+![image](https://github.com/KikidoraFear/Kikiloot/assets/154637862/a1f410b6-d816-4ab0-bf3e-33488276e2f5)
+![image](https://github.com/KikidoraFear/Kikiloot/assets/154637862/5b9f3062-ced3-412e-a4d1-2c332ecd34d6)
  
 ## What it do?!
 if you are the LOOT MASTER, open loot and it will
