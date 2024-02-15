@@ -14,13 +14,18 @@ if you are not the LOOT MASTER:
 - shows loot master's opened loot
 - will display SR and spreadsheet info in tooltip if added
 
+SR-Button:  
 SR can be imported by exporting raidres data as csv:  
 ![image](https://github.com/KikidoraFear/Kikiloot/assets/154637862/bf0130b1-cc97-403a-9464-e6b1929929c8)  
 clicking SR button and paste csv
 
+SS-Button:  
 Spreadsheet info can be imported if captain is nice enough to format
 the spreadsheet similarly to raidres  
 captain's excel skills are poop though
+
+CL-Button:  
+if you are the loot master, it will clear the current item list (for everyone)
 
 ## What it not do?!
 - distribute loot
