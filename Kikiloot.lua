@@ -11,6 +11,67 @@ local config = {
     roll_channel = "RAID"
 }
 
+-- ##########
+-- # LAYOUT #
+-- ##########
+
+local function WindowLayout(window)
+    window:SetBackdrop({bgFile = 'Interface\\Tooltips\\UI-Tooltip-Background'}) -- this is temporary, just for show
+    window:SetBackdropColor(0, 0, 0, 1) -- this is temporary, just for show
+    window:SetPoint('CENTER', UIParent)
+    window:SetWidth(120)
+    window:SetHeight(30)
+    window:EnableMouse(true) -- needed for it to be movable
+    window:RegisterForDrag("LeftButton")
+    window:SetMovable(true)
+    window:SetUserPlaced(true) -- saves the place the user dragged it to
+    window:SetScript("OnDragStart", function() window:StartMoving() end)
+    window:SetScript("OnDragStop", function() window:StopMovingOrSizing() end)
+    window:SetClampedToScreen(true) -- so the window cant be moved out of screen
+end
+
+local function ButtonLayout(parent, btn, txt, tooltip, pos_offset)
+    btn:ClearAllPoints()
+    btn:SetPoint('BOTTOMLEFT', parent, 'BOTTOMLEFT', pos_offset, 0)
+    btn:SetBackdrop({bgFile="Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2}})
+    btn:SetWidth(30)
+    btn:SetHeight(30)
+    btn:Show()
+    btn.text = btn:CreateFontString("Status", "OVERLAY", "GameFontNormal")
+    btn.text:SetFont(STANDARD_TEXT_FONT, 10, "THINOUTLINE")
+    btn.text:SetFontObject(GameFontWhite)
+    btn.text:ClearAllPoints()
+    btn.text:SetPoint("CENTER", btn, "CENTER")
+    btn.text:SetText(txt)
+    btn.text:Show()
+    btn:SetBackdropColor(1, 1, 1, 1)
+    btn:SetBackdropBorderColor(0, 0, 0, 1)
+    btn:SetScript("OnEnter", function()
+        btn:SetBackdropBorderColor(1, 1, 1, 1)
+        GameTooltip:SetOwner(btn, "ANCHOR_TOP")
+        GameTooltip:AddLine(tooltip)
+    end)
+    btn:SetScript("OnLeave", function()
+        btn:SetBackdropBorderColor(0, 0, 0, 1)
+    end)
+end
+
+local function EditBoxLayout(parent, edb)
+    edb:ClearAllPoints()
+    edb:SetPoint("TOPRIGHT", parent, "TOPLEFT")
+    edb:SetMultiLine(true)
+    -- edb:SetTextInsets(15,15,15,15)
+    edb:SetFont(STANDARD_TEXT_FONT, 8, "THINOUTLINE")
+    edb:SetFontObject(GameFontWhite)
+    edb:SetWidth(500)
+    edb:SetHeight(100)
+    edb:SetBackdrop({bgFile = 'Interface\\Tooltips\\UI-Tooltip-Background'})
+    edb:Hide()
+end
+
 -- ####################
 -- # HELPER FUNCTIONS #
 -- ####################
@@ -21,7 +82,16 @@ local function print(msg)
 end
 
 local function ResetData(data)
-    for idx,_ in pairs(data) do data[idx] = nil end
+    if data then
+        for idx,_ in pairs(data) do data[idx] = nil end
+    end
+end
+
+local function GetItemStringFromItemlink(item_link)
+    local _,_,item_string = string.find(item_link, "|H(.-)|h") -- extracts item string from link
+    -- local printable = string.gsub(item_link, "\124", "\124\124"); -- makes item_link printable
+    -- print("Here's what it really looks like: \"" .. printable .. "\"");
+    return item_string
 end
 
 -- ID,Item,Boss,Attendee,Class,Specialization,Comment,Date
@@ -43,7 +113,7 @@ end
 local function ParseLootSpreadsheet(text, data_ss)
     text = text..'\n'
     local pattern = '(.-),(.-),(.-)\n' -- modifier - gets 0 or more repetitions and matches the shortest sequence
-    data_ss = {}
+    ResetData(data_ss)
     for item, prio, rank in string.gfind(text, pattern) do
         data_ss[item] = rank.." -> "..prio
     end
@@ -82,8 +152,7 @@ local function BroadCastItems(data_roll)
                 BroadCastItem(idx_item, "NAME", loot_name)
                 idx_item = idx_item+1
             else
-                print(idx_slot.."_"..idx_player)
-                GiveMasterLoot(idx_slot, idx_player) -- give everything below min_rarity to master looter
+                GiveMasterLoot(idx_slot, idx_player) -- give everything below min_rarity to yourself (master looter)
             end
         end
     end
@@ -94,15 +163,15 @@ local function BroadCastRoll(data_roll, data_sr, idx, source, roll_result)
         -- check SR
         local has_sr = true
         if data_sr[data_roll[idx]._loot_name] then
-            has_sr = false -- set to false only if SR exists and then check if player has SR
-            for _, value in ipairs(data_sr[data_roll[idx]._loot_name]) do
-                if source == value then
+            has_sr = false -- set to false only if SR exists for item and then check if player has SR
+            for _, player_name in ipairs(data_sr[data_roll[idx]._loot_name]) do
+                if source == player_name then
                     has_sr = true
                 end
             end
         end
         if has_sr then
-            SendAddonMessage("KL"..kl_id.."_ROLL_"..source.."_"..idx, roll_result , "RAID") -- "KL4_ROLL_PLAYERNAME", 64, "RAID"
+            SendAddonMessage("KL"..kl_id.."_ROLL_"..source.."_"..idx, roll_result , "RAID") -- "KL4_ROLL_Kikidora_3", 69, "RAID"
         end
     end
 end
@@ -135,11 +204,8 @@ end
 local function AddDataRoll(data_roll, source, roll_result, idx)
     data_roll[idx]._roll[source] = roll_result
     -- rank people who rolled
-    data_roll[idx]._roll_ranking = {} -- <- necessary?
-    for key, _ in pairs(data_roll[idx]._roll) do
-        table.insert(data_roll[idx]._roll_ranking, key) -- creates an array with player_names
-    end
-    table.sort(data_roll[idx]._roll_ranking, function(keyRhs, keyLhs) return data_roll[idx]._roll[keyLhs] < data_roll[idx]._roll[keyRhs] end)
+    table.insert(data_roll[idx]._roll_ranking, source) -- add source to ranking list
+    table.sort(data_roll[idx]._roll_ranking, function(keyRhs, keyLhs) return data_roll[idx]._roll[keyLhs] < data_roll[idx]._roll[keyRhs] end) -- sort ranking list
 end
 
 local data_roll_idx = -1
@@ -174,7 +240,7 @@ local function DisplayData(window, data_roll, data_sr, data_ss, player_name, loo
                 tile = false, tileSize = 16, edgeSize = 8,
                 insets = { left = 3, right = 3, top = 3, bottom = 3}})
             GameTooltip:SetOwner(window.item[idx_f], "ANCHOR_TOP")
-            GameTooltip:AddLine(data_roll[idx_f]._loot_link)
+            GameTooltip:SetHyperlink(GetItemStringFromItemlink(data_roll[idx_f]._loot_link))
             if data_sr[data_roll[idx_f]._loot_name] then
                 local sr_text = "SR: "
                 for _,player_name in pairs(data_sr[data_roll[idx_f]._loot_name]) do
@@ -230,76 +296,34 @@ local data_roll = {}
 -- data[loot][1] = player_name -- list of players who have SR on item
 local data_sr = {}
 
-
 local data_ss = {}
-
-local window = CreateFrame("Frame", "Kikiloot", UIParent)
-window.item = {}
 
 local loot_master = ""
 local player_name = UnitName("player")
 
--- ##########
--- # LAYOUT #
--- ##########
-
-window:SetBackdrop({bgFile = 'Interface\\Tooltips\\UI-Tooltip-Background'}) -- this is temporary, just for show
-window:SetBackdropColor(0, 0, 0, 1) -- this is temporary, just for show
-window:SetPoint('CENTER', UIParent)
-window:SetWidth(120)
-window:SetHeight(30)
-window:EnableMouse(true) -- needed for it to be movable
-window:RegisterForDrag("LeftButton")
-window:SetMovable(true)
-window:SetUserPlaced(true) -- saves the place the user dragged it to
-window:SetScript("OnDragStart", function() window:StartMoving() end)
-window:SetScript("OnDragStop", function() window:StopMovingOrSizing() end)
-window:SetClampedToScreen(true) -- so the window cant be moved out of screen
-
+local window = CreateFrame("Frame", "Kikiloot", UIParent)
+WindowLayout(window)
+window.item = {}
 
 window.button_sr = CreateFrame("Button", nil, window)
-window.button_sr:ClearAllPoints()
-window.button_sr:SetPoint('BOTTOMLEFT', window, 'BOTTOMLEFT')
-window.button_sr:SetBackdrop({bgFile="Interface\\Tooltips\\UI-Tooltip-Background",
-    edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = true, tileSize = 16, edgeSize = 8,
-    insets = { left = 2, right = 2, top = 2, bottom = 2}})
-window.button_sr:SetWidth(30)
-window.button_sr:SetHeight(30)
-window.button_sr:Show()
-window.button_sr.text = window.button_sr:CreateFontString("Status", "OVERLAY", "GameFontNormal")
-window.button_sr.text:SetFont(STANDARD_TEXT_FONT, 10, "THINOUTLINE")
-window.button_sr.text:SetFontObject(GameFontWhite)
-window.button_sr.text:ClearAllPoints()
-window.button_sr.text:SetPoint("CENTER", window.button_sr, "CENTER")
-window.button_sr.text:SetText("SR")
-window.button_sr.text:Show()
-window.button_sr:SetBackdropColor(1, 1, 1, 1)
-window.button_sr:SetBackdropBorderColor(0, 0, 0, 1)
-window.button_sr:SetScript("OnEnter", function()
-    window.button_sr:SetBackdropBorderColor(1, 1, 1, 1)
-    GameTooltip:SetOwner(window.button_sr, "ANCHOR_TOP")
-    GameTooltip:AddLine("Import SR")
-end)
-window.button_sr:SetScript("OnLeave", function()
-    window.button_sr:SetBackdropBorderColor(0, 0, 0, 1)
-end)
+ButtonLayout(window, window.button_sr, "SR", "Import SR", 0)
 
--- https://github.com/shagu/pfUI/blob/633604ca7177f9786df35094cc91b7d0a1bbbe47/modules/share.lua#L385
 window.import_sr = CreateFrame("EditBox", nil, UIParent)
-window.import_sr:ClearAllPoints()
-window.import_sr:SetPoint("TOPRIGHT", window, "TOPLEFT")
-window.import_sr:SetMultiLine(true)
--- window.import_sr:SetTextInsets(15,15,15,15)
-window.import_sr:SetFont(STANDARD_TEXT_FONT, 8, "THINOUTLINE")
-window.import_sr:SetFontObject(GameFontWhite)
-window.import_sr:SetWidth(500)
-window.import_sr:SetHeight(100)
-window.import_sr:SetBackdrop({bgFile = 'Interface\\Tooltips\\UI-Tooltip-Background'})
-window.import_sr:Hide()
-window.import_sr:SetScript("OnTextChanged", function()
-    ParseRaidres(this:GetText(), data_sr)
-end)
+EditBoxLayout(window, window.import_sr)
+
+window.button_ss = CreateFrame("Button", nil, window)
+ButtonLayout(window, window.button_ss, "SS", "Import Spreadsheet", 30)
+
+window.import_ss = CreateFrame("EditBox", nil, UIParent)
+EditBoxLayout(window, window.import_ss)
+
+window.button_cl = CreateFrame("Button", nil, window)
+ButtonLayout(window, window.button_cl, "CL", "Clear Data", 60)
+
+-- #################
+-- # INTERACTIVITY #
+-- #################
+
 window.button_sr:SetScript("OnClick", function()
     window.import_ss:Hide()
     if window.import_sr:IsShown() then
@@ -308,49 +332,10 @@ window.button_sr:SetScript("OnClick", function()
         window.import_sr:Show()
     end
 end)
-
-window.button_ss = CreateFrame("Button", nil, window)
-window.button_ss:ClearAllPoints()
-window.button_ss:SetPoint('BOTTOMLEFT', window, 'BOTTOMLEFT', 30, 0)
-window.button_ss:SetBackdrop({bgFile="Interface\\Tooltips\\UI-Tooltip-Background",
-    edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = true, tileSize = 16, edgeSize = 8,
-    insets = { left = 2, right = 2, top = 2, bottom = 2}})
-window.button_ss:SetWidth(30)
-window.button_ss:SetHeight(30)
-window.button_ss:Show()
-window.button_ss.text = window.button_ss:CreateFontString("Status", "OVERLAY", "GameFontNormal")
-window.button_ss.text:SetFont(STANDARD_TEXT_FONT, 10, "THINOUTLINE")
-window.button_ss.text:SetFontObject(GameFontWhite)
-window.button_ss.text:ClearAllPoints()
-window.button_ss.text:SetPoint("CENTER", window.button_ss, "CENTER")
-window.button_ss.text:SetText("SS")
-window.button_ss.text:Show()
-window.button_ss:SetBackdropColor(1, 1, 1, 1)
-window.button_ss:SetBackdropBorderColor(0, 0, 0, 1)
-window.button_ss:SetScript("OnEnter", function()
-    window.button_ss:SetBackdropBorderColor(1, 1, 1, 1)
-    GameTooltip:SetOwner(window.button_ss, "ANCHOR_TOP")
-    GameTooltip:AddLine("Import Spreadsheet")
-end)
-window.button_ss:SetScript("OnLeave", function()
-    window.button_ss:SetBackdropBorderColor(0, 0, 0, 1)
+window.import_sr:SetScript("OnTextChanged", function()
+    ParseRaidres(this:GetText(), data_sr)
 end)
 
-window.import_ss = CreateFrame("EditBox", nil, UIParent)
-window.import_ss:ClearAllPoints()
-window.import_ss:SetPoint("TOPRIGHT", window, "TOPLEFT")
-window.import_ss:SetMultiLine(true)
--- window.import_ss:SetTextInsets(15,15,15,15)
-window.import_ss:SetFont(STANDARD_TEXT_FONT, 8, "THINOUTLINE")
-window.import_ss:SetFontObject(GameFontWhite)
-window.import_ss:SetWidth(500)
-window.import_ss:SetHeight(100)
-window.import_ss:SetBackdrop({bgFile = 'Interface\\Tooltips\\UI-Tooltip-Background'})
-window.import_ss:Hide()
-window.import_ss:SetScript("OnTextChanged", function()
-    ParseLootSpreadsheet(this:GetText())
-end)
 window.button_ss:SetScript("OnClick", function()
     window.import_sr:Hide()
     if window.import_ss:IsShown() then
@@ -359,45 +344,19 @@ window.button_ss:SetScript("OnClick", function()
         window.import_ss:Show()
     end
 end)
+window.import_ss:SetScript("OnTextChanged", function()
+    ParseLootSpreadsheet(this:GetText())
+end)
 
-window.button_cl = CreateFrame("Button", nil, window)
-window.button_cl:ClearAllPoints()
-window.button_cl:SetPoint('BOTTOMLEFT', window, 'BOTTOMLEFT', 60, 0)
-window.button_cl:SetBackdrop({bgFile="Interface\\Tooltips\\UI-Tooltip-Background",
-    edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = true, tileSize = 16, edgeSize = 8,
-    insets = { left = 2, right = 2, top = 2, bottom = 2}})
-window.button_cl:SetWidth(30)
-window.button_cl:SetHeight(30)
-window.button_cl:Show()
-window.button_cl.text = window.button_cl:CreateFontString("Status", "OVERLAY", "GameFontNormal")
-window.button_cl.text:SetFont(STANDARD_TEXT_FONT, 10, "THINOUTLINE")
-window.button_cl.text:SetFontObject(GameFontWhite)
-window.button_cl.text:ClearAllPoints()
-window.button_cl.text:SetPoint("CENTER", window.button_cl, "CENTER")
-window.button_cl.text:SetText("CL")
-window.button_cl.text:Show()
-window.button_cl:SetBackdropColor(1, 1, 1, 1)
-window.button_cl:SetBackdropBorderColor(0, 0, 0, 1)
-window.button_cl:SetScript("OnEnter", function()
-    window.button_cl:SetBackdropBorderColor(1, 1, 1, 1)
-    GameTooltip:SetOwner(window.button_cl, "ANCHOR_TOP")
-    GameTooltip:AddLine("Clear data")
-end)
-window.button_cl:SetScript("OnLeave", function()
-    window.button_cl:SetBackdropBorderColor(0, 0, 0, 1)
-end)
 window.button_cl:SetScript("OnClick", function()
     if (player_name == loot_master) then
         BroadCastReset()
     end
 end)
 
-
-
--- ##############################
--- # SEND AND RECEIVE ITEM LIST #
--- ##############################
+-- #########################
+-- # SEND AND RECEIVE DATA #
+-- #########################
 
 window:RegisterEvent("LOOT_OPENED")
 window:RegisterEvent("CHAT_MSG_SYSTEM")
@@ -470,13 +429,14 @@ ID,Item,Boss,Attendee,Class,Specialization,Comment,Date
 21110,"Thunderfury",Ragnaros,Malgoni,Warrior,Protection,,"04/02/2024, 14:53:38"
 21110,"Thunderfury",Ragnaros,Kikidora,Warrior,Protection,,"04/02/2024, 14:53:38"
 18814,"Splintered Tusk",Ragnaros,Asdf,Warlock,Destruction,,"04/02/2024, 14:55:41"
-18814,"Ruined Pelt",Ragnaros,Bibbley,Warlock,Destruction,,"04/02/2024, 14:55:41"
-18814,"Ruined Pelt",Ragnaros,Aldiuss,Warlock,Destruction,,"04/02/2024, 14:55:41"
-18814,"Ruined Pelt",Ragnaros,Cock,Warlock,Destruction,,"04/02/2024, 14:55:41"
-18814,"Ruined Pelt",Ragnaros,Cock,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Goretusk Liver",Ragnaros,Bibbley,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Goretusk Liver",Ragnaros,Aldiuss,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Goretusk Liver",Ragnaros,Cock,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Goretusk Liver",Ragnaros,Kikidora,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Stringy Vulture Meat",Ragnaros,Kikidora,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Broken Wishbone",Ragnaros,Pestilentia,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Cracked Bill",Ragnaros,Grizzlix,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Rough Vulture Feathers",Ragnaros,Asterixs,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Linen Cloth",Ragnaros,Baldnic,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Chunk of Boar Meat",Ragnaros,Baldnic,Warlock,Destruction,,"04/02/2024, 14:55:41"
 --]]
