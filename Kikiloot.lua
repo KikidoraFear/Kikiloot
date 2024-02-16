@@ -397,7 +397,7 @@ window:SetScript("OnEvent", function()
             return
         end
         for source, idx_item in string.gfind(arg1, pattern_roll) do
-            AddDataRoll(data_roll, source, arg2, tonumber(idx_item))
+            AddDataRoll(data_roll, source, tonumber(arg2), tonumber(idx_item))
             DisplayData(window, data_roll, data_sr, data_ss, player_name, loot_master)
             return
         end
