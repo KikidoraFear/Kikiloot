@@ -300,9 +300,9 @@ local function AddItem(window, data_loot, data_sr, data_ss, item_link, loot_mast
         data_loot[item_link]._activity = activity -- active, inactive, being_rolled
         data_loot[item_link]._last_interaction = GetTime()
 
-        local idx_item = GetTableLength(data_loot)
-        data_loot[item_link]._row_grid = math.floor(idx_item/config.icon_cols)+1
-        data_loot[item_link]._col_grid = math.mod(idx_item, config.icon_cols)
+        local idx_item = GetTableLength(data_loot)-1
+        data_loot[item_link]._row_grid = math.floor(idx_item/config.icon_cols)+1 -- idx_item = 0 -> 1, idx_item = 5 -> 2, idx_item = 6 -> 2
+        data_loot[item_link]._col_grid = math.mod(idx_item, config.icon_cols)+1
 
         data_loot[item_link]._roll = {}
         data_loot[item_link]._roll_ranking = {}
