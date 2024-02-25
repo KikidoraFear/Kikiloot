@@ -132,9 +132,11 @@ local function ButtonLayout(parent, btn, txt, tooltip, align_btn, align_parent, 
         btn:SetBackdropBorderColor(1, 1, 1, 1)
         GameTooltip:SetOwner(btn, "ANCHOR_TOP")
         GameTooltip:AddLine(tooltip)
+        GameTooltip:Show()
     end)
     btn:SetScript("OnLeave", function()
         btn:SetBackdropBorderColor(0, 0, 0, 1)
+        GameTooltip:Hide()
     end)
 end
 
@@ -175,10 +177,22 @@ end
 
 -- ID,Item,Boss,Attendee,Class,Specialization,Comment,Date
 -- 21110,"Splintered Tusk",Ragnaros,Bibbley,Warrior,Protection,,"04/02/2024, 14:53:38"
+-- local function ParseRaidres(text, data_sr)
+--     text = text..'\n' -- add \n so last line will be matched as well
+--     local pattern = '(%d+),(.-),(.-),(.-),(.-),(.-),(.-),(.-)\n' -- modifier - gets 0 or more repetitions and matches the shortest sequence
+--     text = string.gsub(text, '"', '') -- remove " from text, raidres places it randomly, idk
+--     ResetData(data_sr)
+--     for id, item, boss, attendee, class, specialization, comment, date in string.gfind(text, pattern) do
+--         if not data_sr[item] then
+--             data_sr[item] = {}
+--         end
+--         table.insert(data_sr[item], attendee)
+--     end
+-- end
 local function ParseRaidres(text, data_sr)
     text = text..'\n' -- add \n so last line will be matched as well
-    local pattern = '(%d+),(.-),(.-),(.-),(.-),(.-),(.-),(.-)\n' -- modifier - gets 0 or more repetitions and matches the shortest sequence
-    text = string.gsub(text, '"', '') -- remove " from text, raidres places it randomly, idk
+    local pattern = '(%d+),"(.-)",(.-),(.-),(.-),(.-),"(.-)"\n' -- modifier - gets 0 or more repetitions and matches the shortest sequence
+    -- text = string.gsub(text, '"', '') -- remove " from text, raidres places it randomly, idk
     ResetData(data_sr)
     for id, item, boss, attendee, class, specialization, comment, date in string.gfind(text, pattern) do
         if not data_sr[item] then
@@ -191,7 +205,7 @@ end
 -- Splintered Tusk,Warrior Fury,All Ranks
 local function ParseLootSpreadsheet(text, data_ss)
     text = text..'\n'
-    local pattern = '(.-),(.-),(.-)\n' -- modifier - gets 0 or more repetitions and matches the shortest sequence
+    local pattern = '(.-)#(.-)#(.-)\n' -- modifier - gets 0 or more repetitions and matches the shortest sequence
     ResetData(data_ss)
     for item, prio, rank in string.gfind(text, pattern) do
         data_ss[item] = rank.." -> "..prio
@@ -207,7 +221,6 @@ end
 -- ##############
 -- # BROADCASTS #
 -- ##############
-
 
 local function BroadCastLoot(loot_master)
     for idx_loot = 1, GetNumLootItems() do
@@ -310,11 +323,13 @@ local function AddItem(window, data_loot, data_sr, data_ss, item_link, loot_mast
         data_loot[item_link]._last_interaction = GetTime()
         data_loot[item_link]._activity = activity
     end
-
+    
     if activity == "being_rolled" then -- being_rolled overwrites activity
         data_loot[item_link]._last_interaction = GetTime()
         data_loot[item_link]._activity = activity
     end
+
+    
 
     -- display item
     local item_link_f = item_link
@@ -455,7 +470,7 @@ window.button_ss:SetScript("OnClick", function()
     end
 end)
 window.import_ss:SetScript("OnTextChanged", function()
-    ParseLootSpreadsheet(this:GetText())
+    ParseLootSpreadsheet(this:GetText(), data_ss)
 end)
 
 window.button_cl:SetScript("OnClick", function()
@@ -527,11 +542,11 @@ window:SetScript("OnEvent", function()
             for idx,_ in ipairs(window.rolls) do
                 window.rolls[idx]:Hide()
             end
-            AddItem(window, data_loot, data_sr, data_ss, arg2, loot_master, "being_rolled")
             if item_link_being_rolled then -- set previously rolled item to inactive
                 data_loot[item_link_being_rolled]._activity = "inactive"
                 ActivityLayout(window.item[item_link_being_rolled], data_loot[item_link_being_rolled]._activity)
             end
+            AddItem(window, data_loot, data_sr, data_ss, arg2, loot_master, "being_rolled")
             item_link_being_rolled = arg2
             return
         end
@@ -566,6 +581,110 @@ window:SetScript("OnUpdate", function()
     end
 end)
 
+
+-- stupid shit
+local fun_machine =  CreateFrame("Frame", nil, UIParent)
+local fun_machine_enabled = false
+local fun_machine_cd = 10*60
+local joke_machine_pattern ="tell me a joke, captain"
+local joke_machine_punchline = nil
+local joke_machine_punchline_delay = 5
+local motivator_machine_pattern ="motivate me, captain"
+local joke_machine = {{"A blind man walks into a bar.", "And a table. And a chair."},
+    {"What do wooden whales eat?", "Plankton"},
+    {"What's better than winning the silver medal at the Paralympics?", "Having legs."},
+    {"Two fish in a tank, one says to the other", "\"You man the guns, I'll drive!\""},
+    {"Two soldiers are in a tank, one says to the other", "\"BLURGBLBLURG!\""},
+    {"What do you call an alligator in a vest", "An Investigator"},
+    {"How many tickles does it take to get an octopus to laugh?", "Ten-tickles!"},
+    {"Did you hear about the midget fortune teller who kills his customers?", "He's a small medium at large"},
+    {"What's the best time to go to the dentist?", "2:30"},
+    {"Yo mama so fat, when she was interviewed on Channel 6 news", "you could see her sides on the channels 5 and 7"},
+    {"Yo mama so fat, i swerved to miss her in my car", "and ran out of gas"},
+    {"How many push ups can Chuck Norris do?", "All of them"},
+    {"How did the hacker get away from the police?", "He ransomware"},
+    {"I met a genie once. He gave me one wish. I said \"I wish i could be you\"", "the genie replued \"weurd wush but u wull grant ut\""},
+    {"i bought my daughter a refrigerator for her birthday", "i cant wait to see her face light up when she opens it"},
+    {"a call comes in to 911 \"come quick, my friend was bitten by a wolf!\", operator:\"Where?\"", "\"no, a regular one\""},
+    {"Did you hear about the french cheese factory explosion?", "da brie was everywhere"},
+    {"why do germans store their cheese together with their sausage?", "they're prepared for a wurst-kase scenario"},
+    {"why did the aztec owl not know what the other owls were saying to each other?", "they were inca hoots"}
+}
+local motivator_machine = {"It's never too late to give up",
+    "This is the worst day of my life",
+    "Don't follow your friends off a bridge; lead them",
+    "Just because you're special, doesn't mean you're useful",
+    "No one is as dumb as all of us together",
+    "It may be that the purpose of your life is to serve as a warning for others",
+    "If you ever feel alone, don't",
+    "Give up on your dreams and die",
+    "Trying is the first step to failure",
+    "Make sure to drink water so you can stay hydrated while you suffer",
+    "The Nail that sticks out gets hammered down",
+    "I got an ant farm. They didn't grow shit",
+    "They don't think it be like it is but it do",
+    "If Id agreed with you we'd both be wrong",
+    "Tutant meenage neetle teetle",
+    "When you want win but you receive lose",
+    "Get two birds stoned at once",
+    "Osteoporosis sucks",
+    "Success is just failure that hasn't happened yet",
+    "Never underestimate the power of stupid people in large groups",
+    "I hate everyone equally",
+    "Only dread one day at a time",
+    "Hope is the first step on the road to disappointment",
+    "The beatings will continue until morale improves",
+    "It's always darkest just before it goes pitch black",
+    "When you do bad, no one will forget",
+    "Life's a bitch, then you die",
+    "You suck",
+    "Fuck you",
+    "Not even Noah's ark can carry you, animals",
+    "Your mother buys you Mega Bloks instead of Legos",
+    "You look like you cut your hair with a knife and fork",
+    "You all reek of poverty and animal abuse",
+    "Your garden is overgrown and your cucumbers are soft"
+}
+
+fun_machine:SetScript("OnUpdate", function()
+    if not fun_machine.clock_machine then fun_machine.clock_machine = GetTime() end
+    if GetTime() > fun_machine.clock_machine + fun_machine_cd then
+        fun_machine_enabled = true
+        fun_machine.clock_machine = GetTime()
+    end
+    if not fun_machine.clock_punchline then fun_machine.clock_punchline = GetTime() end
+    if (GetTime() > fun_machine.clock_punchline) and joke_machine_punchline then
+        SendChatMessage(joke_machine_punchline, "RAID_WARNING", nil, nil)
+        joke_machine_punchline = nil
+    end
+end)
+fun_machine:RegisterEvent("CHAT_MSG_RAID")
+-- fun_machine:RegisterEvent("CHAT_MSG_RAID_LEADER")
+fun_machine:SetScript("OnEvent", function()
+    for _ in string.gfind(arg1, joke_machine_pattern) do
+        if fun_machine_enabled then
+            local idx = math.random(1, GetTableLength(joke_machine))
+            SendChatMessage(joke_machine[idx][1] , "RAID_WARNING", nil, nil)
+            joke_machine_punchline = joke_machine[idx][2]
+            fun_machine.clock_machine = GetTime()
+            fun_machine.clock_punchline = GetTime()+joke_machine_punchline_delay
+            fun_machine_enabled = false
+        else
+            SendChatMessage("No." , "RAID_WARNING", nil, nil)
+        end
+    end
+    for _ in string.gfind(arg1, motivator_machine_pattern) do
+        if fun_machine_enabled then
+            local idx = math.random(1, GetTableLength(motivator_machine))
+            SendChatMessage(motivator_machine[idx] , "RAID_WARNING", nil, nil)
+            fun_machine.clock_machine = GetTime()
+            fun_machine_enabled = false
+        else
+            SendChatMessage("No." , "RAID_WARNING", nil, nil)
+        end
+    end
+end)
+
 -- #########
 -- # Tests #
 -- #########
@@ -575,14 +694,30 @@ ID,Item,Boss,Attendee,Class,Specialization,Comment,Date
 21110,"Thunderfury",Ragnaros,Malgoni,Warrior,Protection,,"04/02/2024, 14:53:38"
 21110,"Thunderfury",Ragnaros,Kikidora,Warrior,Protection,,"04/02/2024, 14:53:38"
 18814,"Splintered Tusk",Ragnaros,Asdf,Warlock,Destruction,,"04/02/2024, 14:55:41"
-18814,"Goretusk Liver",Ragnaros,Bibbley,Warlock,Destruction,,"04/02/2024, 14:55:41"
-18814,"Goretusk Liver",Ragnaros,Aldiuss,Warlock,Destruction,,"04/02/2024, 14:55:41"
-18814,"Goretusk Liver",Ragnaros,Cock,Warlock,Destruction,,"04/02/2024, 14:55:41"
-18814,"Goretusk Liver",Ragnaros,Kikidora,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Spider's Silk",Ragnaros,Bibbley,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Spider's Silk",Ragnaros,Aldiuss,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Spider's Silk",Ragnaros,Kikidora,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Ruined Pelt",Ragnaros,Kikidora,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Ruined Pelt",Ragnaros,Bibbley,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Ruined Pelt",Ragnaros,Test,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Stringy Vulture Meat",Ragnaros,Kikidora,Warlock,Destruction,,"04/02/2024, 14:55:41"
-18814,"Broken Wishbone",Ragnaros,Pestilentia,Warlock,Destruction,,"04/02/2024, 14:55:41"
-18814,"Cracked Bill",Ragnaros,Grizzlix,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Gooey Spider Leg",Ragnaros,Pestilentia,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Spider Ichor",Ragnaros,Grizzlix,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Rough Vulture Feathers",Ragnaros,Asterixs,Warlock,Destruction,,"04/02/2024, 14:55:41"
 18814,"Linen Cloth",Ragnaros,Baldnic,Warlock,Destruction,,"04/02/2024, 14:55:41"
-18814,"Chunk of Boar Meat",Ragnaros,Baldnic,Warlock,Destruction,,"04/02/2024, 14:55:41"
+18814,"Spider Palp",Ragnaros,Baldnic,Warlock,Destruction,,"04/02/2024, 14:55:41"
+--]]
+
+--[[
+Lavashard Axe#Warrior Fury#All Ranks
+Core Forged Helmet#Paladin Tank#All Ranks
+Boots of Blistering Flames#Mage#All Ranks
+Ruined Pelt#Rogue#All Ranks
+asdf#Rogue#All Ranks
+Spider Ichor#Shaman Enh/Hunter#All Ranks
+##
+##
+Test#Warrior Tank /Paladin Tank#All Ranks
+T1 Wrist#Class Specific#All Ranks
+Spider Palp#Class Specific#All Ranks
 --]]
