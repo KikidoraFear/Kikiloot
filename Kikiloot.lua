@@ -14,7 +14,7 @@
 local kl_id = 2
 
 local config = {
-    min_rarity = 0, -- 0 grey, 1 white and quest items, 2 green, 3 blue, ...
+    min_rarity = 2, -- 0 grey, 1 white and quest items, 2 green, 3 blue, ...
     rarities = {"Grey", "White", "Green", "Blue", "Purple"},
     refresh_time = 5,
     reset_time = 60,
